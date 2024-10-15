@@ -81,21 +81,59 @@ class SimpleIDE:
     def run_code_thread(self):
         code = self.text_area.get("1.0", tk.END)
         filename = "temp_code.cpp"
-        with open(filename, "w") as f:
-            f.write(code)
+        
+        try:
+            with open(filename, "w") as f:
+                f.write(code)
+        except Exception as e:
+            self.output_area.delete("1.0", tk.END)
+            self.output_area.insert(tk.END, f"Error writing file: {e}")
+            return
+
         compile_command = f"g++ {filename} -o temp_code.exe"
         try:
+            # Compile the code
             subprocess.run(compile_command, check=True, shell=True, stderr=subprocess.PIPE)
-            result = subprocess.run("./temp_code.exe", check=True, capture_output=True, text=True)
-            output = result.stdout
+
+            # Run the executable without opening a console window (if on Windows)
+            if os.name == 'nt':  # For Windows
+                result = subprocess.Popen(
+                    "./temp_code.exe",
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    text=True
+                )
+            else:  # For Unix/Linux
+                result = subprocess.Popen(
+                    "./temp_code.exe",
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+
+            # Get output and errors
+            output, errors = result.communicate()
+            
+            # Display the output
             self.output_area.delete("1.0", tk.END)
-            self.output_area.insert(tk.END, output)
+            if output:
+                self.output_area.insert(tk.END, output)
+            if errors:
+                self.output_area.insert(tk.END, errors)
+
         except subprocess.CalledProcessError as e:
             self.output_area.delete("1.0", tk.END)
             self.output_area.insert(tk.END, e.stderr)
-        os.remove(filename)
-        if os.path.exists("temp_code.exe"):
-            os.remove("temp_code.exe")
+
+        finally:
+            # Cleanup temp files
+            if os.path.exists(filename):
+                os.remove(filename)
+            if os.path.exists("temp_code.exe"):
+                os.remove("temp_code.exe")
+
+
 
     def clear_output(self):
         self.output_area.delete("1.0", tk.END)
